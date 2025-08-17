@@ -1,6 +1,6 @@
 {
   "name": "fullstack-simple-persist",
-  "version": "1.0.0-rc.5",
+  "version": "1.0.0-rc.6",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -36,7 +36,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsup-node --entry.react src/react.tsx --entry.express src/express.ts --entry.index src/index.ts --dts",
+    "build": "tsup-node --entry.react src/react.tsx --entry.express src/express.ts --entry.index src/index.ts --format esm,cjs --dts",
     "test": "vitest --globals",
     "generateToc": "markdown-toc --bullets=\"*\" --no-firsth1 README.md",
     "test:e2e": "vitest"
