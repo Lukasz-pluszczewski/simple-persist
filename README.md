@@ -24,14 +24,14 @@ Simple Persist gives you two primitives—**KeyValue** and **Collection**—that
 ### Install
 
 ```bash
-npm i simple-persist node-persist
+npm i fullstack-simple-persist node-persist
 ```
 
 ### Quick start (Express)
 
 ```ts
 import express from 'express';
-import { persistKeyValue, persistCollection } from 'simple-persist/express';
+import { persistKeyValue, persistCollection } from 'fullstack-simple-persist/express';
 
 const app = express();
 
@@ -53,7 +53,7 @@ app.listen(3000);
 
 ```tsx
 import React from 'react';
-import { createPersistKeyValue, createPersistCollection } from 'simple-persist/react';
+import { createPersistKeyValue, createPersistCollection } from 'fullstack-simple-persist/react';
 
 const { PersistKeyValue, useKeyValue } = createPersistKeyValue('/api/kv');
 const { PersistCollection, useCollection } = createPersistCollection('/api/todos');
@@ -128,7 +128,7 @@ function UI() {
 Mounts a router that stores key–value pairs under a tenant‑scoped directory.
 
 ```ts
-import { persistKeyValue } from 'simple-persist/express';
+import { persistKeyValue } from 'fullstack-simple-persist/express';
 app.use('/api/kv', persistKeyValue('settings', {
   validation?: (key: string, value: any) => boolean,
   getTenant?: (req, res) => string | Error,
@@ -150,7 +150,7 @@ app.use('/api/kv', persistKeyValue('settings', {
 Mounts a router that stores an array of objects with `id`.
 
 ```ts
-import { persistCollection } from 'simple-persist/express';
+import { persistCollection } from 'fullstack-simple-persist/express';
 app.use('/api/todos', persistCollection('todos', {
   validation?: (item: any) => boolean,
   getTenant?: (req, res) => string | Error,

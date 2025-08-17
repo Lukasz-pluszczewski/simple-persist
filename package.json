@@ -1,6 +1,6 @@
 {
-  "name": "simple-persist",
-  "version": "1.0.0-rc.1",
+  "name": "fullstack-simple-persist",
+  "version": "1.0.0-rc.2",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
