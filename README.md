@@ -91,24 +91,20 @@ function UI() {
 ---
 
 ## Table of contents
-
 * [Getting started](#getting-started)
 * [Concepts](#concepts)
 * [Express API](#express-api)
-
-    * [persistKeyValue](#persistkeyvalue)
-    * [persistCollection](#persistcollection)
-    * [Endpoints](#endpoints)
+  * [persistKeyValue](#persistkeyvaluename-options)
+  * [persistCollection](#persistcollectionname-options)
 * [React API](#react-api)
-
-    * [createPersistKeyValue](#createpersistkeyvalue)
-    * [createPersistCollection](#createpersistcollection)
+  * [createPersistKeyValue](#createpersistkeyvalueendpoint)
+  * [createPersistCollection](#createpersistcollectionendpoint)
 * [Sync & concurrency](#sync--concurrency)
 * [Validation](#validation)
-* [Multi‑tenancy](#multi-tenancy)
-* [TypeScript](#typescript)
+* [Multi‑tenancy](#multi%E2%80%91tenancy)
 * [Examples](#examples)
 * [FAQ](#faq)
+* [Changelog](#changelog)
 
 ---
 
