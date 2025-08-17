@@ -103,6 +103,7 @@ function UI() {
 * [Validation](#validation)
 * [Multi‑tenancy](#multi%E2%80%91tenancy)
 * [Examples](#examples)
+* [TypeScript](#typescript)
 * [FAQ](#faq)
 * [Changelog](#changelog)
 
@@ -287,6 +288,30 @@ await setMany({ theme: 'dark', locale: 'en-GB' });
 // Single key
 await setKey('username', 'alice');
 await deleteKey('oldKey');
+```
+
+---
+
+## TypeScript
+You can add type annotations to your stores for autocompletion and type safety.
+
+```ts
+// KeyValue store
+const { PersistKeyValue, useKeyValue } = createPersistKeyValue<{ setting: 'foo' | 'bar' }>('/api/keyvalue');
+
+const [setting, setSetting] = useKeyValue('setting'); // ['foo' | 'bar', (next: 'foo' | 'bar') => Promise<void>]
+
+setSetting('baz'); // error: Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
+
+
+// Collection store
+type Todo = { id: string, foo: string, bar: number };
+const { PersistCollection, useCollection } = createPersistCollection<Todo>('/api/todos');
+
+const [todos, { setItems, setItem, updateItem, deleteItem, addItem }] = useCollection();
+
+addItem({ id: '1', foo: 'bar', bar: 1 }); // ok
+addItem({ id: '1', foo: 2, bar: 1 }); // error: type 'number' is not assignable to type 'string'
 ```
 
 ---

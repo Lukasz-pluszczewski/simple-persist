@@ -100,20 +100,19 @@ class SyncCore<T> {
 }
 
 // ---- KeyValue: context + hook factory
-export function createPersistKeyValue(endpoint: string) {
-  type MapShape = Record<string, any>;
+export function createPersistKeyValue<TStore extends Record<string, any>>(endpoint: string) {
   const Ctx = createContext<{
-    state: MapShape;
+    state: TStore;
     set: (key: string, value: any) => Promise<void>;
     refresh: () => Promise<void>;
   } | null>(null);
 
   function Provider({ children }: { children: React.ReactNode }) {
-    const [state, setState] = useState<MapShape>({});
-    const coreRef = useRef<SyncCore<MapShape>>(undefined);
+    const [state, setState] = useState<TStore>({});
+    const coreRef = useRef<SyncCore<TStore>>(undefined);
 
     useEffect(() => {
-      const core = new SyncCore<MapShape>(endpoint, (data) => setState(data ?? {}));
+      const core = new SyncCore<TStore>(endpoint, (data) => setState(data ?? {}));
       coreRef.current = core;
       core.fetchAll().catch(() => void 0);
       core.startSSE();
@@ -142,26 +141,26 @@ export function createPersistKeyValue(endpoint: string) {
   }
 
   // Hook: useKeyValue(key?)
-  function useKeyValue(key: string): [any, (next: any) => Promise<void>];
-  function useKeyValue(): [MapShape, {
-    setAll: (next: MapShape) => Promise<void>;
-    setMany: (upsert: MapShape) => Promise<void>;
-    setKey: (key: string, value: any) => Promise<void>;
-    deleteKey: (key: string) => Promise<void>;
+  function useKeyValue<TKey extends keyof TStore>(key: TKey): [TStore[TKey], (next: TStore[TKey]) => Promise<void>];
+  function useKeyValue(): [TStore, {
+    setAll: (next: TStore) => Promise<void>;
+    setMany: (upsert: TStore) => Promise<void>;
+    setKey: (key: keyof TStore, value: TStore[keyof TStore]) => Promise<void>;
+    deleteKey: (key: keyof TStore) => Promise<void>;
   }];
   function useKeyValue(key?: string):
-    [any, (next: any) => Promise<void>] |
-    [MapShape, {
-      setAll: (next: MapShape) => Promise<void>;
-      setMany: (upsert: MapShape) => Promise<void>;
-      setKey: (key: string, value: any) => Promise<void>;
-      deleteKey: (key: string) => Promise<void>;
+    [TStore[keyof TStore], (next: TStore[keyof TStore]) => Promise<void>] |
+    [TStore, {
+      setAll: (next: TStore) => Promise<void>;
+      setMany: (upsert: TStore) => Promise<void>;
+      setKey: (key: keyof TStore, value: TStore[keyof TStore]) => Promise<void>;
+      deleteKey: (key: keyof TStore) => Promise<void>;
     }]
   {
     const ctx = useContext(Ctx);
     if (!ctx) throw new Error('PersistKeyValue provider missing');
 
-    const setAll = async (next: MapShape) => {
+    const setAll = async (next: TStore) => {
       const res = await fetch(`${endpoint}/_bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -174,8 +173,8 @@ export function createPersistKeyValue(endpoint: string) {
 
     const setMany = setAll;
 
-    const setKey = async (k: string, value: any) => {
-      const res = await fetch(`${endpoint}/${encodeURIComponent(k)}`, {
+    const setKey = async (k: keyof TStore, value: TStore[keyof TStore]) => {
+      const res = await fetch(`${endpoint}/${encodeURIComponent(k as string)}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -185,8 +184,8 @@ export function createPersistKeyValue(endpoint: string) {
       await ctx.refresh();
     };
 
-    const deleteKey = async (k: string) => {
-      const res = await fetch(`${endpoint}/${encodeURIComponent(k)}`, {
+    const deleteKey = async (k: keyof TStore) => {
+      const res = await fetch(`${endpoint}/${encodeURIComponent(k as string)}`, {
         method: 'DELETE',
         credentials: 'include',
       });
@@ -207,8 +206,8 @@ export function createPersistKeyValue(endpoint: string) {
 }
 
 // ---- Collection: context + hook factory
-export function createPersistCollection(endpoint: string) {
-  type Arr = any[];
+export function createPersistCollection<TRecord extends (Record<string, any> & { id: string })>(endpoint: string) {
+  type Arr = TRecord[];
   const Ctx = createContext<{
     state: Arr;
     setAll: (arr: Arr) => Promise<void>;
@@ -248,25 +247,25 @@ export function createPersistCollection(endpoint: string) {
   }
 
   function useCollection(): [
-    any[],
+    TRecord[],
     {
-      setItems: (next: any[]) => Promise<void>;
-      setItem: (id: string, item: any) => Promise<void>;        // replace whole object
-      updateItem: (id: string, patch: any) => Promise<void>;     // shallow merge
+      setItems: (next: TRecord[]) => Promise<void>;
+      setItem: (id: string, item: TRecord) => Promise<void>;        // replace whole object
+      updateItem: (id: string, patch: Partial<TRecord>) => Promise<void>;     // shallow merge
       deleteItem: (id: string) => Promise<void>;
-      addItem: (item: any) => Promise<void>;
+      addItem: (item: TRecord) => Promise<void>;
     }
   ] {
     const ctx = useContext(Ctx);
     if (!ctx) throw new Error('PersistCollection provider missing');
 
-    const setItems = async (next: any[]) => {
+    const setItems = async (next: TRecord[]) => {
       const withIds = ensureIdsClient(next);
       await ctx.setAll(withIds); // full-array PUT (LWW)
     };
 
     // Replace entire object by id (no merge)
-    const setItem = async (id: string, item: any) => {
+    const setItem = async (id: string, item: TRecord) => {
       const withId = typeof item?.id === 'string' ? { ...item, id } : { ...item, id };
       const res = await fetch(`${endpoint}/item/${encodeURIComponent(id)}`, {
         method: 'PUT',
@@ -279,7 +278,7 @@ export function createPersistCollection(endpoint: string) {
     };
 
     // Shallow merge patch into existing item by id
-    const updateItem = async (id: string, patch: any) => {
+    const updateItem = async (id: string, patch: Partial<TRecord>) => {
       const res = await fetch(`${endpoint}/item/${encodeURIComponent(id)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -299,7 +298,7 @@ export function createPersistCollection(endpoint: string) {
       await ctx.refresh();
     };
 
-    const addItem = async (item: any) => {
+    const addItem = async (item: TRecord) => {
       const withId = typeof item?.id === 'string' ? item : { ...item, id: randomId() };
       const res = await fetch(`${endpoint}/item`, {
         method: 'POST',
