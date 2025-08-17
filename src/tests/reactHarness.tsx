@@ -1,5 +1,5 @@
 import React, { forwardRef, useImperativeHandle } from 'react';
-import { render, cleanup, screen, act, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { createPersistCollection, createPersistKeyValue } from '../react';
 
 export interface KVApi {
@@ -25,10 +25,17 @@ export function mountKV(baseURL: string, tenant = 'default') {
 
   const KVComp = forwardRef<KVApi>(function KVComp(_, ref) {
     const [map, { setAll, setMany, setKey, deleteKey }] = useKeyValue();
-    useImperativeHandle(ref, () => ({
-      getMap: () => map,
-      setAll, setMany, setKey, deleteKey,
-    }), [map]);
+    useImperativeHandle(
+      ref,
+      () => ({
+        getMap: () => map,
+        setAll,
+        setMany,
+        setKey,
+        deleteKey,
+      }),
+      [map]
+    );
     return <pre data-testid={`kv-${tenant}`}>{JSON.stringify(map)}</pre>;
   });
 
@@ -43,16 +50,26 @@ export function mountKV(baseURL: string, tenant = 'default') {
 
 export function mountCollection(baseURL: string, tenant = 'default') {
   const endpoint = `${baseURL}/todos?tenant=${tenant}`;
-  const { PersistCollection, useCollection } = createPersistCollection(endpoint);
+  const { PersistCollection, useCollection } =
+    createPersistCollection(endpoint);
 
   const APIRef = React.createRef<CollectionApi>();
 
   const CollComp = forwardRef<CollectionApi>(function CollComp(_, ref) {
-    const [items, { setItems, setItem, updateItem, deleteItem, addItem }] = useCollection();
-    useImperativeHandle(ref, () => ({
-      getItems: () => items,
-      setItems, setItem, updateItem, deleteItem, addItem,
-    }), [items]);
+    const [items, { setItems, setItem, updateItem, deleteItem, addItem }] =
+      useCollection();
+    useImperativeHandle(
+      ref,
+      () => ({
+        getItems: () => items,
+        setItems,
+        setItem,
+        updateItem,
+        deleteItem,
+        addItem,
+      }),
+      [items]
+    );
     return <pre data-testid={`coll-${tenant}`}>{JSON.stringify(items)}</pre>;
   });
 

@@ -1,9 +1,11 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request2 from 'supertest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { cleanup, mountCollection, screen, waitFor } from './reactHarness';
 import { createTestServer } from './testServer';
-import { mountCollection, screen, waitFor, cleanup } from './reactHarness';
 
-function parseList(el: HTMLElement): any[] { return JSON.parse(el.textContent || '[]'); }
+function parseList(el: HTMLElement): any[] {
+  return JSON.parse(el.textContent || '[]');
+}
 
 describe('Collection E2E', () => {
   let srv: Awaited<ReturnType<typeof createTestServer>>;
@@ -23,7 +25,11 @@ describe('Collection E2E', () => {
     await waitFor(() => expect(parseList(pre)).toEqual([]));
 
     // Add from another client via HTTP
-    const add = await fetch(`${srv.baseURL}/todos?tenant=c1/item`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { text: 'A' } }) });
+    const add = await fetch(`${srv.baseURL}/todos?tenant=c1/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { text: 'A' } }),
+    });
     console.log('add', add.status, add.statusText);
     expect(add.ok).toBe(true);
 
@@ -41,12 +47,22 @@ describe('Collection E2E', () => {
     const pre = await screen.findByTestId('coll-c2');
     await waitFor(() => expect(parseList(pre)).toEqual([]));
 
-    const add = await fetch(`${srv.baseURL}/todos?tenant=c2/item`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { text: 'X', done: false, extra: 'keep?' } }) });
+    const add = await fetch(`${srv.baseURL}/todos?tenant=c2/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item: { text: 'X', done: false, extra: 'keep?' },
+      }),
+    });
     const addJson = await add.json();
     const id = addJson.item.id as string;
 
     // update (merge)
-    const patch = await fetch(`${srv.baseURL}/todos?tenant=c2/item/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: { done: true } }) });
+    const patch = await fetch(`${srv.baseURL}/todos?tenant=c2/item/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ patch: { done: true } }),
+    });
     expect(patch.ok).toBe(true);
 
     await waitFor(() => {
@@ -55,7 +71,11 @@ describe('Collection E2E', () => {
     });
 
     // set (replace)
-    const put = await fetch(`${srv.baseURL}/todos?tenant=c2/item/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { text: 'Y' } }) });
+    const put = await fetch(`${srv.baseURL}/todos?tenant=c2/item/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { text: 'Y' } }),
+    });
     expect(put.ok).toBe(true);
 
     await waitFor(() => {
@@ -69,21 +89,45 @@ describe('Collection E2E', () => {
     const pre = await screen.findByTestId('coll-c3');
     await waitFor(() => expect(parseList(pre)).toEqual([]));
 
-    const a = await fetch(`${srv.baseURL}/todos?tenant=c3/item`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { text: 'A', done: false } }) });
-    const b = await fetch(`${srv.baseURL}/todos?tenant=c3/item`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { text: 'B', done: false } }) });
+    const a = await fetch(`${srv.baseURL}/todos?tenant=c3/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { text: 'A', done: false } }),
+    });
+    const b = await fetch(`${srv.baseURL}/todos?tenant=c3/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { text: 'B', done: false } }),
+    });
     const idA = (await a.json()).item.id as string;
     const idB = (await b.json()).item.id as string;
 
     // Simulate near-simultaneous updates from two clients on different items
     await Promise.all([
-      fetch(`${srv.baseURL}/todos?tenant=c3/item/${idA}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: { done: true } }) }),
-      fetch(`${srv.baseURL}/todos?tenant=c3/item/${idB}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ patch: { text: 'B!' } }) }),
+      fetch(`${srv.baseURL}/todos?tenant=c3/item/${idA}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patch: { done: true } }),
+      }),
+      fetch(`${srv.baseURL}/todos?tenant=c3/item/${idB}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patch: { text: 'B!' } }),
+      }),
     ]);
 
     await waitFor(() => {
       const list = parseList(pre);
-      expect(list.find((x: any) => x.id === idA)).toMatchObject({ id: idA, text: 'A', done: true });
-      expect(list.find((x: any) => x.id === idB)).toMatchObject({ id: idB, text: 'B!', done: false });
+      expect(list.find((x: any) => x.id === idA)).toMatchObject({
+        id: idA,
+        text: 'A',
+        done: true,
+      });
+      expect(list.find((x: any) => x.id === idB)).toMatchObject({
+        id: idB,
+        text: 'B!',
+        done: false,
+      });
     });
   });
 
@@ -93,7 +137,11 @@ describe('Collection E2E', () => {
     await waitFor(() => expect(parseList(pre)).toEqual([]));
 
     // invalid: no text & no id (server validation requires text if id missing)
-    const bad = await fetch(`${srv.baseURL}/todos?tenant=c4/item`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ item: { nope: 1 } }) });
+    const bad = await fetch(`${srv.baseURL}/todos?tenant=c4/item`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item: { nope: 1 } }),
+    });
     expect(bad.status).toBe(422);
 
     await waitFor(() => expect(parseList(pre)).toEqual([]));

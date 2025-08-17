@@ -1,15 +1,17 @@
 # Simple Persist
 
-> Tiny self-hosted state store for Express + React. Realtime sync, last‑write‑wins, no need for CRUD boilerplate.
+> Tiny self-hosted framework-agnostic state store with extremely simple to use Express and React adapters. Realtime sync, last‑write‑wins, no CRUD boilerplate.
 
 ![Express Logo](logo.png)
 
-Simple Persist gives you two primitives—**KeyValue** and **Collection**—that you can drop into any Express app and bind to React with one Provider + one hook. No client state library needed, no endpoints to hand‑roll, and it works with your auth/session as-is.
+Simple Persist gives you two primitives—**KeyValue** and **Collection**—that you can drop into any Express app and bind to React with one Provider + one hook. Under the hood, it’s split into lightweight **adapters** (Express/React) on top of **vanilla cores** (server/client) so you can wire it to any framework.
 
-* **Express**: add a router for a store (`persistKeyValue`, `persistCollection`).
-* **React**: point the client at that URL (`createPersistKeyValue`, `createPersistCollection`).
-* **Sync**: realtime via SSE (with polling fallback).
-* **Concurrency**: per-key/per-item updates won’t clobber each other.
+- **Express adapter**: add a router (`persistKeyValue`, `persistCollection`).
+- **React adapter**: point the client at that URL (`createPersistKeyValue`, `createPersistCollection`).
+- **Vanilla server core**: `KeyValueService`, `CollectionService`, and `UpdateHub` for building your own adapter (Fastify, Hono, Koa, native `http`, etc.).
+- **Vanilla client core**: `KeyValueClient`, `CollectionClient`, `SyncSession` if you want to use Svelte/Vue/Vite SSR or plain JS.
+- **Sync**: realtime via SSE (with polling fallback).
+- **Concurrency**: per-key/per-item updates won’t clobber each other.
 
 ---
 
@@ -17,9 +19,10 @@ Simple Persist gives you two primitives—**KeyValue** and **Collection**—that
 
 ### Requirements
 
-* Node 18+
-* Express 4 or 5
-* React 18+
+* **Node 18+**
+* If you use the **Express adapter**: Express 4 or 5
+* If you use the **React adapter**: React 18+
+* If you use **vanilla cores only**: any HTTP framework + `fetch` + `EventSource` on the client
 
 ### Install
 
@@ -31,7 +34,7 @@ npm i fullstack-simple-persist node-persist
 
 ```ts
 import express from 'express';
-import { persistKeyValue, persistCollection } from 'fullstack-simple-persist/express';
+import { persistCollection, persistKeyValue } from 'fullstack-simple-persist/express';
 
 const app = express();
 
@@ -53,7 +56,7 @@ app.listen(3000);
 
 ```tsx
 import React from 'react';
-import { createPersistKeyValue, createPersistCollection } from 'fullstack-simple-persist/react';
+import { createPersistCollection, createPersistKeyValue } from 'fullstack-simple-persist/react';
 
 const { PersistKeyValue, useKeyValue } = createPersistKeyValue('/api/kv');
 const { PersistCollection, useCollection } = createPersistCollection('/api/todos');
@@ -91,14 +94,24 @@ function UI() {
 ---
 
 ## Table of contents
+
 * [Getting started](#getting-started)
 * [Concepts](#concepts)
+* [Adapters & architecture](#adapters--architecture)
 * [Express API](#express-api)
   * [persistKeyValue](#persistkeyvaluename-options)
   * [persistCollection](#persistcollectionname-options)
 * [React API](#react-api)
   * [createPersistKeyValue](#createpersistkeyvalueendpoint)
-  * [createPersistCollection](#createpersistcollectionendpoint)
+  * [createPersistcollection](#createpersistcollectionendpoint)
+* [Vanilla server API](#vanilla-server-api)
+  * [KeyValueService](#keyvalueservice)
+  * [CollectionService](#collectionservice)
+  * [UpdateHub](#updatehub-sse-helper)
+* [Vanilla client API](#vanilla-client-api)
+  * [KeyValueClient](#keyvalueclient)
+  * [CollectionClient](#collectionclient)
+  * [SyncSession](#syncsession)
 * [Sync & concurrency](#sync--concurrency)
 * [Validation](#validation)
 * [Multi‑tenancy](#multi%E2%80%91tenancy)
@@ -115,6 +128,27 @@ function UI() {
 * **Collection** — an array of objects; **every item has an `id: string`** (UUID by default). Non-object items are wrapped as `{ id, value }`.
 * **Tenant** — a logical namespace (per user, per org, etc.). If you don’t provide `getTenant`, everything goes into the `default` tenant.
 * **Realtime** — clients subscribe to `/__events` (Server‑Sent Events). Any write triggers an event.
+
+---
+
+## Adapters & architecture
+
+Simple Persist is split into **vanilla cores** and **adapters**:
+
+* `fullstack-simple-persist/server` — framework‑agnostic backend primitives:
+
+  * `KeyValueService`, `CollectionService` (business logic + storage)
+  * `UpdateHub` (per‑tenant event emitter)
+  * `NodePersistAdapter` (default storage; swappable)
+* `fullstack-simple-persist/express` — Express router that wires services + SSE.
+* `fullstack-simple-persist/client` — framework‑agnostic client:
+
+  * `KeyValueClient`, `CollectionClient` (HTTP helpers)
+  * `SyncSession` (SSE + polling)
+  * `randomId`, `ensureIdsClient` helpers
+* `fullstack-simple-persist/react` — React Provider + hooks built on the vanilla client.
+
+This makes it trivial to add adapters for Fastify/Hono/Koa or Vue/Svelte/etc. without touching core logic.
 
 ---
 
@@ -135,12 +169,12 @@ app.use('/api/kv', persistKeyValue('settings', {
 
 **Routes exposed**
 
-* `GET /` → `{ data: Record<string, any>, version }`
-* `GET /:key` → `{ key, value, version }` or 404
-* `PUT /:key` body: `{ value }` → upsert
-* `DELETE /:key` → delete
-* `POST /_bulk` body: `{ upsert?: Record<string, any>, delete?: string[] }` → per‑key merge without clobbering unrelated keys
-* `GET /__events` → SSE stream (internal; used by the client)
+- `GET /` → `{ data: Record<string, any>, version }`
+- `GET /:key` → `{ key, value, version }` or 404
+- `PUT /:key` body: `{ value }` → upsert
+- `DELETE /:key` → delete
+- `POST /_bulk` body: `{ upsert?: Record<string, any>, delete?: string[] }` → per‑key merge without clobbering unrelated keys
+- `GET /__events` → SSE stream (internal; used by the client)
 
 ### `persistCollection(name, options)`
 
@@ -157,13 +191,13 @@ app.use('/api/todos', persistCollection('todos', {
 
 **Routes exposed**
 
-* `GET /` → `{ data: any[], version }` (auto‑migrates legacy items to include `id`)
-* `PUT /` body: `{ data: any[] }` → replace full array (last‑write‑wins)
-* `POST /item` body: `{ item }` → add/upsert single item (auto‑id if missing)
-* `PUT /item/:id` body: `{ item }` → **replace** item by id (no merge)
-* `PATCH /item/:id` body: `{ patch }` → **shallow merge** into item by id (upsert if missing)
-* `DELETE /item/:id` → delete item by id
-* `GET /__events` → SSE stream
+- `GET /` → `{ data: any[], version }` (auto‑migrates legacy items to include `id`)
+- `PUT /` body: `{ data: any[] }` → replace full array (last‑write‑wins)
+- `POST /item` body: `{ item }` → add/upsert single item (auto‑id if missing)
+- `PUT /item/:id` body: `{ item }` → **replace** item by id (no merge)
+- `PATCH /item/:id` body: `{ patch }` → **shallow merge** into item by id (upsert if missing)
+- `DELETE /item/:id` → delete item by id
+- `GET /__events` → SSE stream
 
 > Storage engine: \[node‑persist] under the hood; per‑store, per‑tenant directories. You don’t need to configure it unless you want to change `baseDir`.
 
@@ -187,21 +221,22 @@ const { PersistKeyValue, useKeyValue } = createPersistKeyValue('/api/kv');
 
 **Hook**
 
-* `useKeyValue(key)` → `[value, setValue]`
-* `useKeyValue()` → `[map, { setAll, setMany, setKey, deleteKey }]`
+- `useKeyValue(key)` → `[value, setValue]`
+- `useKeyValue()` → `[map, { setAll, setMany, setKey, deleteKey }]`
 
 **Notes**
 
-* `setAll(map)` merges keys on the server using `/_bulk` upserts (no mass delete by default).
-* `setMany(map)` is an alias of `setAll`.
-* `setKey(key, value)` and `deleteKey(key)` target one key.
+- `setAll(map)` merges keys on the server using `/_bulk` upserts (no mass delete by default).
+- `setMany(map)` is an alias of `setAll`.
+- `setKey(key, value)` and `deleteKey(key)` target one key.
 
 ### `createPersistCollection(endpoint)`
 
 Creates a Provider + hook pair bound to your Collection endpoint.
 
 ```ts
-const { PersistCollection, useCollection } = createPersistCollection('/api/todos');
+const { PersistCollection, useCollection } =
+  createPersistCollection('/api/todos');
 ```
 
 **Provider**
@@ -213,23 +248,113 @@ const { PersistCollection, useCollection } = createPersistCollection('/api/todos
 **Hook**
 
 ```ts
-const [items, { setItems, setItem, updateItem, deleteItem, addItem }] = useCollection();
+const [items, { setItems, setItem, updateItem, deleteItem, addItem }] =
+  useCollection();
 ```
 
-* `setItems(next[])` → replace the whole array (LWW)
-* `setItem(id, item)` → **replace** object by id (no merge)
-* `updateItem(id, patch)` → **shallow merge** into object by id
-* `deleteItem(id)` → remove by id
-* `addItem(item)` → add (auto‑id if missing)
+- `setItems(next[])` → replace the whole array (LWW)
+- `setItem(id, item)` → **replace** object by id (no merge)
+- `updateItem(id, patch)` → **shallow merge** into object by id
+- `deleteItem(id)` → remove by id
+- `addItem(item)` → add (auto‑id if missing)
+
+---
+
+## Vanilla server API
+
+You can build your own backend adapter on top of the **vanilla services**.
+
+### `KeyValueService`
+
+```ts
+import { KeyValueService, UpdateHub } from 'fullstack-simple-persist/server';
+
+const hub = new UpdateHub();
+const kv = new KeyValueService('settings', { baseDir: '.data' }, hub);
+
+// Example within any HTTP handler
+await kv.put(tenant, 'theme', 'dark');
+const map = await kv.getAll(tenant);
+await kv.bulk(tenant, { locale: 'en-GB' });
+```
+
+### `CollectionService`
+
+```ts
+import { CollectionService, UpdateHub } from 'fullstack-simple-persist/server';
+
+const hub = new UpdateHub();
+const todos = new CollectionService('todos', {}, hub);
+
+const all = await todos.getAll(tenant);
+const saved = await todos.add(tenant, { text: 'New' });
+await todos.patch(tenant, saved.id, { done: true });
+await todos.put(tenant, saved.id, { text: 'Replace entirely' });
+await todos.del(tenant, saved.id);
+```
+
+### `UpdateHub` (SSE helper)
+
+Use `hub.on(scope, cb)` to subscribe and `hub.emit(scope, payload)` to notify. For SSE, the **scope** is typically `${type}:${name}:${tenant}` (e.g., `kv:settings:alice`).
+
+```ts
+import { UpdateHub } from 'fullstack-simple-persist/server';
+
+const hub = new UpdateHub();
+const off = hub.on('kv:settings:alice', (payload) => {
+  // write to SSE response: `event: update` + `data: ${JSON.stringify(payload)}`
+});
+// call off() when connection closes
+```
+
+---
+
+## Vanilla client API
+
+If you’re not on React, use the **vanilla client**.
+
+### `KeyValueClient`
+
+```ts
+import { KeyValueClient } from 'fullstack-simple-persist/client';
+
+const kv = new KeyValueClient('/api/kv');
+await kv.setKey('username', 'alice');
+await kv.bulk({ theme: 'dark' });
+```
+
+### `CollectionClient`
+
+```ts
+import { CollectionClient } from 'fullstack-simple-persist/client';
+
+const todos = new CollectionClient('/api/todos');
+const item = await todos.add({ text: 'A' });
+await todos.updateItem(item.id, { done: true });
+await todos.setItem(item.id, { text: 'B' });
+```
+
+### `SyncSession`
+
+```ts
+import { SyncSession } from 'fullstack-simple-persist/client';
+
+const session = new SyncSession('/api/kv', (data) => {
+  // update your UI state with new data
+});
+session.fetchAll();
+session.startSSE();
+// session.stop() on teardown
+```
 
 ---
 
 ## Sync & concurrency
 
-* **Realtime**: clients subscribe to an SSE stream at `endpoint/__events`; any write triggers a refresh. There’s also a polling fallback.
-* **KeyValue**: use `/_bulk` for multi‑key updates so other clients’ keys aren’t clobbered.
-* **Collection**: per‑item routes ensure that two clients changing **different** items at the same time won’t overwrite each other. Full‑array `PUT` is still available when you intend to replace everything.
-* **Conflict policy**: last‑write‑wins, recommended to use granular methods (updateItem, addItem) instead of bulk (setItems)
+- **Realtime**: clients subscribe to an SSE stream at `endpoint/__events`; any write triggers a refresh. There’s also a polling fallback.
+- **KeyValue**: use `/_bulk` for multi‑key updates so other clients’ keys aren’t clobbered.
+- **Collection**: per‑item routes ensure that two clients changing **different** items at the same time won’t overwrite each other. Full‑array `PUT` is still available when you intend to replace everything.
+- **Conflict policy**: last‑write‑wins (use granular methods like `updateItem`, `addItem` for fewer conflicts).
 
 ---
 
@@ -243,7 +368,8 @@ persistKeyValue('settings', {
 });
 
 persistCollection('todos', {
-  validation: (item) => typeof item?.id === 'string' && typeof item?.text === 'string',
+  validation: (item) =>
+    typeof item?.id === 'string' && typeof item?.text === 'string',
 });
 ```
 
@@ -263,6 +389,8 @@ persistCollection('todos', {
   },
 });
 ```
+
+---
 
 ## Examples
 
@@ -293,22 +421,26 @@ await deleteKey('oldKey');
 ---
 
 ## TypeScript
+
 You can add type annotations to your stores for autocompletion and type safety.
 
 ```ts
 // KeyValue store
-const { PersistKeyValue, useKeyValue } = createPersistKeyValue<{ setting: 'foo' | 'bar' }>('/api/keyvalue');
+const { PersistKeyValue, useKeyValue } = createPersistKeyValue<{
+  setting: 'foo' | 'bar';
+}>('/api/keyvalue');
 
 const [setting, setSetting] = useKeyValue('setting'); // ['foo' | 'bar', (next: 'foo' | 'bar') => Promise<void>]
 
 setSetting('baz'); // error: Argument of type '"baz"' is not assignable to parameter of type '"foo" | "bar"'
 
-
 // Collection store
-type Todo = { id: string, foo: string, bar: number };
-const { PersistCollection, useCollection } = createPersistCollection<Todo>('/api/todos');
+type Todo = { id: string; foo: string; bar: number };
+const { PersistCollection, useCollection } =
+  createPersistCollection<Todo>('/api/todos');
 
-const [todos, { setItems, setItem, updateItem, deleteItem, addItem }] = useCollection();
+const [todos, { setItems, setItem, updateItem, deleteItem, addItem }] =
+  useCollection();
 
 addItem({ id: '1', foo: 'bar', bar: 1 }); // ok
 addItem({ id: '1', foo: 2, bar: 1 }); // error: type 'number' is not assignable to type 'string'
@@ -318,18 +450,22 @@ addItem({ id: '1', foo: 2, bar: 1 }); // error: type 'number' is not assignable 
 
 ## FAQ
 
-**What about auth?**  Use your existing Express auth (cookies/sessions/JWT). If `getTenant` returns an `Error`, writes are rejected with `401`.
+**What about auth?** Use your existing Express auth (cookies/sessions/JWT). If `getTenant` returns an `Error`, writes are rejected with `401`.
 
-**Does it work offline?**  Not yet. You’ll still get polling + SSE when online.
+**Does it work offline?** Not yet. You’ll still get polling + SSE when online.
 
-**Can I bring my own storage?**  Today it’s `node-persist`. The API is storage‑agnostic; plugging another adapter is on the roadmap.
+**Can I bring my own storage?** Yes. The server core uses an adapter interface. We ship `NodePersistAdapter` by default; you can implement your own adapter with the same methods (`init`, `keys`, `getItem`, `setItem`, `removeItem`).
 
-**What about filtering/pagination for collections?**  Intentionally omitted for simplicity—`GET /` returns the whole array.
+**What about filtering/pagination for collections?** Intentionally omitted for simplicity—`GET /` returns the whole array.
 
-**CORS?**  Configure it on your Express app as usual.
+**CORS?** Configure it on your framework as usual.
+
+---
 
 ## Changelog
+
 ### 1.0.0
+
 - Initial release
 - KeyValue and Collection stores
 - Support for Express and React

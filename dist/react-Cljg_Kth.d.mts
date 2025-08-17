@@ -1,4 +1,5 @@
 import React from 'react';
+import { Optional } from 'ts-toolbelt/out/Object/Optional';
 
 declare function createPersistKeyValue<TStore extends Record<string, any>>(endpoint: string): {
     PersistKeyValue: ({ children }: {
@@ -14,18 +15,18 @@ declare function createPersistKeyValue<TStore extends Record<string, any>>(endpo
         }];
     };
 };
-declare function createPersistCollection<TRecord extends (Record<string, any> & {
+declare function createPersistCollection<TRecord extends Record<string, any> & {
     id: string;
-})>(endpoint: string): {
+}>(endpoint: string): {
     PersistCollection: ({ children }: {
         children: React.ReactNode;
     }) => any;
     useCollection: () => [TRecord[], {
-        setItems: (next: TRecord[]) => Promise<void>;
-        setItem: (id: string, item: TRecord) => Promise<void>;
+        setItems: (next: Optional<TRecord, "id">[]) => Promise<void>;
+        setItem: (id: string, item: Omit<TRecord, "id">) => Promise<void>;
         updateItem: (id: string, patch: Partial<TRecord>) => Promise<void>;
         deleteItem: (id: string) => Promise<void>;
-        addItem: (item: TRecord) => Promise<void>;
+        addItem: (item: Optional<TRecord, "id">) => Promise<void>;
     }];
 };
 
